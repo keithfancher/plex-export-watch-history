@@ -1,4 +1,4 @@
-# plex_watch_history_export
+# Plex export watch-history
 
 Export your watch history from Plex! Outputs as `json`.
 
@@ -18,7 +18,7 @@ held responsible for future Plex schema changes, &c. YMMV!
 Run it, point it to (a copy of) your Plex SQLite database, e.g.:
 
 ```
-$ python3 plex_watch_history_export.py com.plexapp.plugins.library.db
+$ python3 plex_export_watch_history.py com.plexapp.plugins.library.db
 
 Exported 4490 items to plex_watch_history.json
 ```
