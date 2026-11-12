@@ -2,11 +2,33 @@
 import argparse
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 def columns(db, table):
     return {row[1] for row in db.execute(f'PRAGMA table_info("{table}")')}
+
+
+def local_iso_datetime(value):
+    """Convert a Plex timestamp to ISO 8601 in the script runner's local time zone."""
+    if value is None:
+        return None
+
+    if isinstance(value, (int, float)):
+        dt = datetime.fromtimestamp(value, tz=timezone.utc)
+    else:
+        text = str(value).strip()
+        try:
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return text  # Preserve the value if its format is unrecognized.
+
+        # Treat a datetime without an explicit time zone as UTC.
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt.astimezone().isoformat(timespec="seconds")
 
 
 def main():
@@ -79,8 +101,10 @@ def main():
     for row in db.execute(query):
         item = dict(row)
         last_viewed = item.pop("last_viewed_at")
+
         item["watch_count"] = item.pop("view_count")
         item["last_watched"] = last_viewed
+        item["last_watched_iso"] = local_iso_datetime(last_viewed)
 
         paths = db.execute(
             """
