@@ -47,3 +47,17 @@ just in case. 'Cause why not!
 
 ...where `[plex library location]`, again, varies by environment. On a Linux
 machine, for example, it'll likely be in `/var/lib/plexmediaserver`.
+
+## Output data format
+
+Mostly just a column-dump -- nothin' fancy. Ordered from new-to-old.
+
+Interesting fields will likely be: `title` (for shows or movies), `show_name`,
+(for shows only), `file_paths`, `watch_count`, and the two `last_watched`
+fields. (Plex only stores the most recent watch time, unfortunately.)
+
+The `last_watched` field is just the value as it exists in the DB: a unix
+timestamp. `last_watched_iso` is the same value, but formatted as an
+[ISO-8601](https://en.wikipedia.org/wiki/ISO_8601) string, set to the time
+zone of the machine running the script. This latter field is just for
+human-readable convenience, easier `grep`ing, &c.
