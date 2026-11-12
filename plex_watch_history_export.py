@@ -19,6 +19,7 @@ def main():
     if not db_path.is_file():
         raise SystemExit(f"Database not found: {db_path}")
 
+    # Read-only connection; this script does not modify the Plex database.
     db = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
     db.row_factory = sqlite3.Row
 
@@ -29,18 +30,30 @@ def main():
 
     required = {
         "metadata_items": (mi, {"id", "guid", "title"}),
-        "metadata_item_settings": (settings, {"guid", "view_count", "last_viewed_at"}),
+        "metadata_item_settings": (
+            settings,
+            {"guid", "view_count", "last_viewed_at"},
+        ),
         "media_items": (media_items, {"id", "metadata_item_id"}),
         "media_parts": (media_parts, {"media_item_id", "file"}),
     }
     for table, (found, needed) in required.items():
         missing = needed - found
         if missing:
-            raise SystemExit(f"Expected columns missing from {table}: {', '.join(sorted(missing))}")
+            raise SystemExit(
+                f"Expected columns missing from {table}: "
+                f"{', '.join(sorted(missing))}"
+            )
 
+    # These fields may vary between Plex database versions.
     optional_fields = [
-        "type", "year", "parent_title", "parent_index", "index",
-        "originally_available_at", "duration",
+        "type",
+        "year",
+        "parent_title",
+        "parent_index",
+        "index",
+        "originally_available_at",
+        "duration",
     ]
     extra_fields = [
         f'mi."{field}" AS "{field}"' if field in mi else f'NULL AS "{field}"'
@@ -48,12 +61,17 @@ def main():
     ]
 
     query = f"""
-        SELECT mi.id AS metadata_id, mi.guid, mi.title,
-               {", ".join(extra_fields)},
-               s.view_count, s.last_viewed_at
+        SELECT
+            mi.id AS metadata_id,
+            mi.guid,
+            mi.title,
+            {", ".join(extra_fields)},
+            s.view_count,
+            s.last_viewed_at
         FROM metadata_item_settings AS s
         JOIN metadata_items AS mi ON mi.guid = s.guid
-        WHERE COALESCE(s.view_count, 0) > 0 OR s.last_viewed_at IS NOT NULL
+        WHERE COALESCE(s.view_count, 0) > 0
+           OR s.last_viewed_at IS NOT NULL
         ORDER BY s.last_viewed_at DESC
     """
 
@@ -79,9 +97,13 @@ def main():
         results.append(item)
 
     db.close()
-    output = Path(args.output).expanduser()
-    output.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"Exported {len(results)} items to {output.resolve()}")
+
+    output_path = Path(args.output).expanduser()
+    output_path.write_text(
+        json.dumps(results, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    print(f"Exported {len(results)} items to {output_path.resolve()}")
 
 
 if __name__ == "__main__":
