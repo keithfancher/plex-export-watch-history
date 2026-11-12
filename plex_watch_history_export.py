@@ -35,6 +35,11 @@ def main():
     parser = argparse.ArgumentParser(description="Export Plex watch data to JSON.")
     parser.add_argument("database", help="Path to com.plexapp.plugins.library.db")
     parser.add_argument("-o", "--output", default="plex_watch_history.json")
+    parser.add_argument(
+        "-x", "--exclude-show-season",
+        action="store_true",
+        help="Exclude Plex show- and season-level entries (see README.md)",
+    )
     args = parser.parse_args()
 
     db_path = Path(args.database).expanduser().resolve()
@@ -93,6 +98,13 @@ def main():
         show_field = "NULL AS show_name"
         hierarchy_joins = ""
 
+    exclude_clause = ""
+    if args.exclude_show_season:
+        exclude_clause = """
+            AND mi.guid NOT LIKE 'plex://show%'
+            AND mi.guid NOT LIKE 'plex://season%'
+        """
+
     query = f"""
         SELECT
             mi.id AS metadata_id,
@@ -105,8 +117,11 @@ def main():
         FROM metadata_item_settings AS s
         JOIN metadata_items AS mi ON mi.guid = s.guid
         {hierarchy_joins}
-        WHERE COALESCE(s.view_count, 0) > 0
-           OR s.last_viewed_at IS NOT NULL
+        WHERE (
+            COALESCE(s.view_count, 0) > 0
+            OR s.last_viewed_at IS NOT NULL
+        )
+        {exclude_clause}
         ORDER BY s.last_viewed_at DESC
     """
 
