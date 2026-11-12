@@ -82,16 +82,29 @@ def main():
         for field in optional_fields
     ]
 
+    # TV hierarchy is usually episode -> season -> show, linked by parent_id.
+    if "parent_id" in mi:
+        show_field = "COALESCE(grandparent.title, parent.title) AS show_name"
+        hierarchy_joins = """
+            LEFT JOIN metadata_items AS parent ON parent.id = mi.parent_id
+            LEFT JOIN metadata_items AS grandparent ON grandparent.id = parent.parent_id
+        """
+    else:
+        show_field = "NULL AS show_name"
+        hierarchy_joins = ""
+
     query = f"""
         SELECT
             mi.id AS metadata_id,
             mi.guid,
             mi.title,
             {", ".join(extra_fields)},
+            {show_field},
             s.view_count,
             s.last_viewed_at
         FROM metadata_item_settings AS s
         JOIN metadata_items AS mi ON mi.guid = s.guid
+        {hierarchy_joins}
         WHERE COALESCE(s.view_count, 0) > 0
            OR s.last_viewed_at IS NOT NULL
         ORDER BY s.last_viewed_at DESC
