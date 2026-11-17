@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+
 import argparse
 import json
 import sqlite3
@@ -6,12 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-def columns(db, table):
-    return {row[1] for row in db.execute(f'PRAGMA table_info("{table}")')}
-
-
 def local_iso_datetime(value):
-    """Convert a Plex timestamp to ISO 8601 in the script runner's local time zone."""
+    """Convert a Plex timestamp to ISO-8601 in the script runner's local time zone."""
     if value is None:
         return None
 
@@ -31,25 +29,14 @@ def local_iso_datetime(value):
     return dt.astimezone().isoformat(timespec="seconds")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Export Plex watch data to JSON.")
-    parser.add_argument("database", help="Path to com.plexapp.plugins.library.db")
-    parser.add_argument("-o", "--output", default="plex_watch_history.json")
-    parser.add_argument(
-        "-x", "--exclude-show-season",
-        action="store_true",
-        help="Exclude Plex show- and season-level entries (see README.md)",
-    )
-    args = parser.parse_args()
+def columns(db, table):
+    """Convenience?"""
+    return {row[1] for row in db.execute(f'PRAGMA table_info("{table}")')}
 
-    db_path = Path(args.database).expanduser().resolve()
-    if not db_path.is_file():
-        raise SystemExit(f"Database not found: {db_path}")
 
-    # Read-only connection; this script does not modify the Plex database.
-    db = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
-    db.row_factory = sqlite3.Row
-
+def query_db(db, exclude_show_season=False):
+    """Query the given SQLite DB, return some results! Things get messy in
+    here, best not to look too close..."""
     mi = columns(db, "metadata_items")
     settings = columns(db, "metadata_item_settings")
     media_items = columns(db, "media_items")
@@ -99,7 +86,7 @@ def main():
         hierarchy_joins = ""
 
     exclude_clause = ""
-    if args.exclude_show_season:
+    if exclude_show_season:
         exclude_clause = """
             AND mi.guid NOT LIKE 'plex://show%'
             AND mi.guid NOT LIKE 'plex://season%'
@@ -148,6 +135,31 @@ def main():
 
         results.append(item)
 
+    return results
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Export Plex watch data to JSON.")
+    parser.add_argument("database", help="Path to com.plexapp.plugins.library.db")
+    parser.add_argument("-o", "--output", default="plex_watch_history.json")
+    parser.add_argument(
+        "-x", "--exclude-show-season",
+        action="store_true",
+        help="Exclude Plex show- and season-level entries (see README.md)",
+    )
+    args = parser.parse_args()
+
+    db_path = Path(args.database).expanduser().resolve()
+    if not db_path.is_file():
+        raise SystemExit(f"Database not found: {db_path}")
+
+    # Read-only connection; we don't modify the Plex database.
+    db = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
+    db.row_factory = sqlite3.Row
+
+    # Do the thing.
+    results = query_db(db, args.exclude_show_season)
+
     db.close()
 
     output_path = Path(args.output).expanduser()
@@ -155,7 +167,7 @@ def main():
         json.dumps(results, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    print(f"Exported {len(results)} items to {output_path.resolve()}")
+    print(f"Exported {len(results)} items to {output_path.resolve()}. Enjoy!")
 
 
 if __name__ == "__main__":
